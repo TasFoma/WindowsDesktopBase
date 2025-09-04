@@ -146,7 +146,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
-             
+            // === КОД ДЛЯ ЗАДАНИЯ 2 ===
+            // Получаем размеры клиентской области окна
+            RECT rect;
+            GetClientRect(hWnd, &rect);
+
+            // Создаем красное перо (Pen) толщиной 2 пикселя
+            HPEN hRedPen = CreatePen(PS_SOLID, 2, RGB(255, 0, 0));
+            // Выбираем созданное перо в контекст, сохраняя старое
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hRedPen);
+
+            // Рисуем первую линию крестика (из левого верхнего в правый нижний угол)
+            MoveToEx(hdc, rect.left, rect.top, NULL);
+            LineTo(hdc, rect.right, rect.bottom);
+
+            // Рисуем вторую линию крестика (из правого верхнего в левый нижний угол)
+            MoveToEx(hdc, rect.right, rect.top, NULL);
+            LineTo(hdc, rect.left, rect.bottom);
+
+            // Возвращаем старое перо и удаляем созданное нами
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hRedPen);
+            // === КОНЕЦ КОДА ДЛЯ ЗАДАНИЯ 2 ===
             EndPaint(hWnd, &ps);
         }
         break;
