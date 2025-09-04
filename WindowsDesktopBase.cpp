@@ -10,6 +10,7 @@
 HINSTANCE hInst;                                // текущий экземпляр
 WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
+COLORREF g_crossColor = RGB(255, 0, 0);         // Изначально цвет красный. 
 
 // Отправить объявления функций, включенных в этот модуль кода:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -142,6 +143,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
+     // === КОД ДЛЯ ЗАДАНИЯ 3 ===
+    case WM_LBUTTONDOWN:
+    {
+        // Меняем цвет при каждом клике
+        if (g_crossColor == RGB(255, 0, 0)) // Если текущий цвет красный
+            g_crossColor = RGB(0, 255, 0);  // Меняем на зеленый
+        else
+            g_crossColor = RGB(255, 0, 0);  // Иначе обратно на красный
+
+        // Требуем перерисовки всего окна
+        InvalidateRect(hWnd, NULL, TRUE);
+    }
+    break;
+    // === КОНЕЦ КОДА ДЛЯ ЗАДАНИЯ 3 ===
+
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
@@ -152,7 +168,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             GetClientRect(hWnd, &rect);
 
             // Создаем красное перо (Pen) толщиной 2 пикселя
-            HPEN hRedPen = CreatePen(PS_SOLID, 2, RGB(255, 0, 0));
+            //  HPEN hRedPen = CreatePen(PS_SOLID, 2, RGB(255, 0, 0));  ЭТО БЫЛО В ЗАДАНИИ 2
+          
+            // Создаем красное перо (Pen) толщиной 2 пикселя
+            HPEN hRedPen = CreatePen(PS_SOLID, 2, g_crossColor); // Используем глобальную переменную ДЛЯ ЗАДАНИЯ 3
+
             // Выбираем созданное перо в контекст, сохраняя старое
             HPEN hOldPen = (HPEN)SelectObject(hdc, hRedPen);
 
