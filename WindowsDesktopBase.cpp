@@ -5,11 +5,17 @@
 #include "WindowsDesktopBase.h"
 
 #define MAX_LOADSTRING 100
-
+struct WindowData
+{
+    bool isGreen; // Цвет крестика для этого окна 
+    int mouseX;   // Координата X мыши 
+    int mouseY;   // Координата Y мыши
+};
 // Глобальные переменные:
 HINSTANCE hInst;                                // текущий экземпляр
 WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
+bool g_isGreen = false; // Флаг текущего цвета (false - красный, true - зеленый)
 
 // Отправить объявления функций, включенных в этот модуль кода:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -95,20 +101,45 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-   hInst = hInstance; // Сохранить маркер экземпляра в глобальной переменной
+    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+    // Создаем данные для первого окна
+    WindowData* pWindowData1 = new WindowData();
+    pWindowData1->isGreen = false;
+    pWindowData1->mouseX = 0;
+    pWindowData1->mouseY = 0;
 
-   if (!hWnd)
-   {
-      return FALSE;
-   }
+    HWND hWnd1 = CreateWindowW(szWindowClass, L"Окно 1", WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, pWindowData1); // Последний параметр - наши данные!
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+    if (!hWnd1)
+    {
+        delete pWindowData1; // Если окно не создалось, чистим память
+        return FALSE;
+    }
 
-   return TRUE;
+    ShowWindow(hWnd1, nCmdShow);
+    UpdateWindow(hWnd1);
+
+    // Создаем данные для второго окна
+    WindowData* pWindowData2 = new WindowData();
+    pWindowData2->isGreen = false;
+    pWindowData2->mouseX = 0;
+    pWindowData2->mouseY = 0;
+
+    HWND hWnd2 = CreateWindowW(szWindowClass, L"Окно 2", WS_OVERLAPPEDWINDOW,
+        500, 100, 400, 400, nullptr, nullptr, hInstance, pWindowData2); // Другое положение
+
+    if (!hWnd2)
+    {
+        delete pWindowData2;
+        return FALSE;
+    }
+
+    ShowWindow(hWnd2, nCmdShow);
+    UpdateWindow(hWnd2);
+
+    return TRUE;
 }
 
 //
@@ -142,17 +173,79 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
-    case WM_PAINT:
+    case WM_MOUSEMOVE:
+    {
+        WindowData* pData = (WindowData*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+        if (pData)
         {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-             
-            EndPaint(hWnd, &ps);
+            pData->mouseX = LOWORD(lParam); // Обновляем координаты
+            pData->mouseY = HIWORD(lParam);
+            InvalidateRect(hWnd, NULL, TRUE); // Перерисовываем
         }
-        break;
+    }
+    break;
+    case WM_LBUTTONDOWN:
+    {
+        g_isGreen = !g_isGreen; // Меняем цвет
+        InvalidateRect(hWnd, NULL, TRUE); // Принудительно перерисовываем окно
+    }
+    break;
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps); // Получаем контекст устройства для рисования
+
+        // Получаем указатель на данные окна
+        WindowData* pData = (WindowData*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+
+        // Получаем размеры клиентской области окна
+        RECT clientRect;
+        GetClientRect(hWnd, &clientRect);
+
+        // Создаем перо толщиной 3 пикселя выбираем цвет в зависимости от состояния флага
+        HPEN hRedPen = CreatePen(PS_SOLID, 3, g_isGreen ? RGB(0, 255, 0) : RGB(255, 0, 0));
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hRedPen); // Выбираем перо в контекст  
+
+        // Рисуем первую диагональ (из левого верхнего в правый нижний угол)
+        MoveToEx(hdc, clientRect.left, clientRect.top, NULL);
+        LineTo(hdc, clientRect.right, clientRect.bottom);
+
+        // Рисуем вторую диагональ (из правого верхнего в левый нижний угол)
+        MoveToEx(hdc, clientRect.right, clientRect.top, NULL);
+        LineTo(hdc, clientRect.left, clientRect.bottom);
+
+        // Восстанавливаем старое перо и удаляем созданное
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hRedPen);
+
+        // Формируем и выводим строку с координатами (ДО EndPaint!)
+        if (pData) // Проверяем, что данные есть
+        {
+            WCHAR coordsText[64];
+            swprintf_s(coordsText, L"X: %d, Y: %d", pData->mouseX, pData->mouseY);
+            TextOut(hdc, 10, 10, coordsText, wcslen(coordsText));
+        }
+
+        EndPaint(hWnd, &ps); // Завершаем рисование
+    } 
+    break;
+    case WM_CREATE:
+    {
+        // Сохраняем переданные данные
+        CREATESTRUCT* pCreate = (CREATESTRUCT*)lParam;
+        WindowData* pData = (WindowData*)pCreate->lpCreateParams;
+        SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pData);
+    }
+    break;
+
     case WM_DESTROY:
+    {
+        // Освобождаем память
+        WindowData* pData = (WindowData*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+        delete pData;
         PostQuitMessage(0);
-        break;
+    }
+    break;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
