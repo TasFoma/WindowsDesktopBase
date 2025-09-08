@@ -17,6 +17,9 @@ WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки за�
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
 bool g_isGreen = false; // Флаг текущего цвета (false - красный, true - зеленый)
 
+// Добавляем глобальную переменную для режима отображения
+bool g_showCoordsInAllWindows = false; // false - только в активном, true - во всех
+
 // Отправить объявления функций, включенных в этот модуль кода:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -178,9 +181,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         WindowData* pData = (WindowData*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
         if (pData)
         {
-            pData->mouseX = LOWORD(lParam); // Обновляем координаты
+            pData->mouseX = LOWORD(lParam);
             pData->mouseY = HIWORD(lParam);
-            InvalidateRect(hWnd, NULL, TRUE); // Перерисовываем
+            InvalidateRect(hWnd, NULL, TRUE);
+
+            // ТОЛЬКО ЕСЛИ РЕЖИМ "ВО ВСЕХ ОКНАХ"
+            if (g_showCoordsInAllWindows)
+            {
+                // Простой поиск всех наших окон
+                HWND hWndOther = FindWindow(szWindowClass, NULL);
+                while (hWndOther)
+                {
+                    if (hWndOther != hWnd) // Не текущее окно
+                    {
+                        WindowData* pOtherData = (WindowData*)GetWindowLongPtr(hWndOther, GWLP_USERDATA);
+                        if (pOtherData)
+                        {
+                            pOtherData->mouseX = LOWORD(lParam);
+                            pOtherData->mouseY = HIWORD(lParam);
+                            InvalidateRect(hWndOther, NULL, TRUE);
+                        }
+                    }
+                    hWndOther = FindWindowEx(NULL, hWndOther, szWindowClass, NULL);
+                }
+            }
         }
     }
     break;
@@ -227,6 +251,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
 
         EndPaint(hWnd, &ps); // Завершаем рисование
+        // Показываем текущий режим
+        WCHAR modeText[50];
+        swprintf_s(modeText, L"Режим: %s (F2)",
+            g_showCoordsInAllWindows ? L"Все окна" : L"Только это");
+        TextOut(hdc, 10, 30, modeText, wcslen(modeText));
     } 
     break;
     case WM_CREATE:
@@ -244,6 +273,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         WindowData* pData = (WindowData*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
         delete pData;
         PostQuitMessage(0);
+    }
+    break;
+    case WM_KEYDOWN:
+    {
+        //обрабатываем только F2
+        if (wParam == VK_F2)
+        {
+            // Меняем режим
+            g_showCoordsInAllWindows = !g_showCoordsInAllWindows;
+
+            // Просто перерисовываем все окна чтобы увидеть изменение
+            HWND hWndCurrent = GetWindow(GetDesktopWindow(), GW_CHILD);
+            while (hWndCurrent)
+            {
+                WCHAR className[256];
+                GetClassName(hWndCurrent, className, 256);
+                if (wcscmp(className, szWindowClass) == 0)
+                {
+                    InvalidateRect(hWndCurrent, NULL, TRUE);
+                }
+                hWndCurrent = GetWindow(hWndCurrent, GW_HWNDNEXT);
+            }
+        }
     }
     break;
     default:
